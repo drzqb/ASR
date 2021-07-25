@@ -1,16 +1,16 @@
 import tensorflow as tf
 from tensorflow.keras.backend import ctc_decode
 from tensorflow.keras.layers import Input, Dense, Conv2D, MaxPooling2D, Dropout, Bidirectional, BatchNormalization, GRU, \
-    Activation, TimeDistributed
+    Activation, TimeDistributed, Flatten, Masking
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, Adadelta
 import os
 from pathlib import Path
 import numpy as np
 from TFDataUtils import TFDATAUTILS
-from CustomLayers import CTCLayer
+from CustomLayers import CTCLayer, CTCInputLabelLen
 
-params_epochs = 50
+params_epochs = 100
 params_lr = 1.0e-2
 param_drop_rate = 0.2
 params_batch_size = 16
@@ -31,30 +31,35 @@ class USER():
         pinyin_labels = Input(name='pinyin_labels', shape=[self.tfdu.label_max_string_len], dtype=tf.int32)
 
         layer_h1 = Conv2D(16, 3, activation='relu', padding='same', kernel_initializer='he_normal')(audio_input)
-        layer_h1 = Dropout(param_drop_rate)(layer_h1)
+        layer_h1 = Dropout(0.1)(layer_h1)
         layer_h2 = Conv2D(16, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h1)
         layer_h3 = MaxPooling2D(pool_size=2, padding="valid")(layer_h2)
-        layer_h3 = Dropout(param_drop_rate)(layer_h3)
+        layer_h3 = Dropout(0.2)(layer_h3)
+
         layer_h4 = Conv2D(32, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h3)
-        layer_h4 = Dropout(param_drop_rate)(layer_h4)
+        layer_h4 = Dropout(0.2)(layer_h4)
         layer_h5 = Conv2D(32, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h4)
         layer_h6 = MaxPooling2D(pool_size=2, padding="valid")(layer_h5)
+        layer_h6 = Dropout(0.3)(layer_h6)
 
-        layer_h6 = Dropout(param_drop_rate)(layer_h6)
         layer_h7 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h6)
-        layer_h7 = Dropout(param_drop_rate)(layer_h7)
+        layer_h7 = Dropout(0.3)(layer_h7)
         layer_h8 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h7)
-        layer_h9 = MaxPooling2D(pool_size=2, padding="valid")(layer_h8)  # 池化层
+        layer_h9 = MaxPooling2D(pool_size=2, padding="valid")(layer_h8)
+        x = Dropout(0.4)(layer_h9)
 
-        x = Dropout(param_drop_rate)(layer_h9)
-        x = BatchNormalization(axis=-1, epsilon=1.1e-5)(x)
+        x = BatchNormalization(axis=-1, epsilon=1e-5)(x)
         x = Activation('relu')(x)
-        x = TimeDistributed(tf.keras.layers.Flatten(), name='flatten')(x)
-        x = Bidirectional(GRU(512, return_sequences=True, implementation=2), name='blstm')(x)
+        x = TimeDistributed(Flatten(), name='flatten')(x)
+
+        x = Bidirectional(GRU(128, return_sequences=True, dropout=0.4), name='blstm1')(x)
+        x = Bidirectional(GRU(64, return_sequences=True, dropout=0.4), name='blstm2')(x)
         crnnoutput = Dense(self.tfdu.pinyins_len + 2, name='crnnoutput', activation='softmax')(x)
 
         # CTC
-        predict = CTCLayer(name="ctclayer")(inputs=(pinyin_labels, crnnoutput))
+        input_len, label_len = CTCInputLabelLen(3, name="ctcinputlabellen")(inputs=(audio_input, pinyin_labels))
+
+        predict = CTCLayer(name="ctclayer")(inputs=(pinyin_labels, crnnoutput, input_len, label_len))
 
         model = Model(inputs=[audio_input, pinyin_labels], outputs=[predict])
 
@@ -71,26 +76,21 @@ class USER():
                             dtype='float32')
 
         layer_h1 = Conv2D(16, 3, activation='relu', padding='same', kernel_initializer='he_normal')(audio_input)
-        layer_h1 = Dropout(param_drop_rate)(layer_h1)
         layer_h2 = Conv2D(16, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h1)
         layer_h3 = MaxPooling2D(pool_size=2, padding="valid")(layer_h2)
-        layer_h3 = Dropout(param_drop_rate)(layer_h3)
         layer_h4 = Conv2D(32, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h3)
-        layer_h4 = Dropout(param_drop_rate)(layer_h4)
         layer_h5 = Conv2D(32, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h4)
         layer_h6 = MaxPooling2D(pool_size=2, padding="valid")(layer_h5)
 
-        layer_h6 = Dropout(param_drop_rate)(layer_h6)
         layer_h7 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h6)
-        layer_h7 = Dropout(param_drop_rate)(layer_h7)
         layer_h8 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h7)
-        layer_h9 = MaxPooling2D(pool_size=2, padding="valid")(layer_h8)  # 池化层
+        x = MaxPooling2D(pool_size=2, padding="valid")(layer_h8)  # 池化层
 
-        x = Dropout(param_drop_rate)(layer_h9)
         x = BatchNormalization(axis=-1, epsilon=1.1e-5)(x)
         x = Activation('relu')(x)
-        x = TimeDistributed(tf.keras.layers.Flatten(), name='flatten')(x)
-        x = Bidirectional(GRU(512, return_sequences=True, implementation=2), name='blstm')(x)
+        x = TimeDistributed(Flatten(), name='flatten')(x)
+        x = Bidirectional(GRU(128, return_sequences=True), name='blstm1')(x)
+        x = Bidirectional(GRU(64, return_sequences=True), name='blstm2')(x)
         crnnoutput = Dense(self.tfdu.pinyins_len + 2, name='crnnoutput', activation='softmax')(x)
 
         model = Model(inputs=[audio_input], outputs=[crnnoutput])
@@ -109,11 +109,11 @@ class USER():
                                                               [self.tfdu.label_max_string_len]))
 
         dev_dataset = self.tfdu.batched_data("data/TFRecordFiles/thchs30_dev.tfrecord",
-                                               self.tfdu.single_example_parser,
-                                               params_batch_size,
-                                               padded_shapes=(([self.tfdu.audio_len, self.tfdu.audio_feature_len],
-                                                               [self.tfdu.label_max_string_len]),
-                                                              [self.tfdu.label_max_string_len]))
+                                             self.tfdu.single_example_parser,
+                                             params_batch_size,
+                                             padded_shapes=(([self.tfdu.audio_len, self.tfdu.audio_feature_len],
+                                                             [self.tfdu.label_max_string_len]),
+                                                            [self.tfdu.label_max_string_len]))
 
         model = self.build_model()
         if params_mode == "train1":

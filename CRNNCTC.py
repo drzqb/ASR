@@ -12,7 +12,7 @@ from CustomLayers import CTCLayer, CTCInputLabelLen
 
 params_epochs = 100
 params_lr = 1.0e-2
-params_batch_size = 16
+params_batch_size = 8
 
 params_check = "models/densenetctc/"
 params_model_name = "densenetctc.h5"
@@ -29,31 +29,29 @@ class USER():
                             dtype=tf.float32)
         pinyin_labels = Input(name='pinyin_labels', shape=[self.tfdu.label_max_string_len], dtype=tf.int32)
 
-        layer_h1 = Conv2D(16, 3, activation='relu', padding='same', kernel_initializer='he_normal')(audio_input)
+        layer_h1 = Conv2D(32, 3, activation='relu', padding='same', kernel_initializer='he_normal')(audio_input)
         layer_h1 = Dropout(0.1)(layer_h1)
-        layer_h2 = Conv2D(16, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h1)
+        layer_h2 = Conv2D(32, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h1)
         layer_h3 = MaxPooling2D(pool_size=2, padding="valid")(layer_h2)
         layer_h3 = Dropout(0.2)(layer_h3)
 
-        layer_h4 = Conv2D(32, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h3)
-        layer_h4 = Dropout(0.2)(layer_h4)
-        layer_h5 = Conv2D(32, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h4)
+        layer_h4 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h3)
+        layer_h4 = Dropout(0.3)(layer_h4)
+        layer_h5 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h4)
         layer_h6 = MaxPooling2D(pool_size=2, padding="valid")(layer_h5)
         layer_h6 = Dropout(0.3)(layer_h6)
 
-        layer_h7 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h6)
+        layer_h7 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h6)
         layer_h7 = Dropout(0.3)(layer_h7)
-        layer_h8 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h7)
+        layer_h8 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h7)
         layer_h9 = MaxPooling2D(pool_size=2, padding="valid")(layer_h8)
-        x = Dropout(0.4)(layer_h9)
 
-        x = BatchNormalization(axis=-1, epsilon=1e-5)(x)
-        x = Activation('relu')(x)
-        x = TimeDistributed(Flatten(), name='flatten')(x)
+        layer_h10 = TimeDistributed(Flatten(), name='flatten')(layer_h9)
+        layer_h10 = Dropout(0.4)(layer_h10)
+        layer_h11 = Dense(128, activation="relu", use_bias=True, kernel_initializer='he_normal')(layer_h10)
+        layer_h11 = Dropout(0.4)(layer_h11)
 
-        x = Bidirectional(GRU(128, return_sequences=True, dropout=0.4), name='blstm1')(x)
-        x = Bidirectional(GRU(64, return_sequences=True, dropout=0.4), name='blstm2')(x)
-        crnnoutput = Dense(self.tfdu.pinyins_len + 2, name='crnnoutput', activation='softmax')(x)
+        crnnoutput = Dense(self.tfdu.pinyins_len + 2, name='crnnoutput', activation='softmax')(layer_h11)
 
         # CTC
         input_len, label_len = CTCInputLabelLen(3, name="ctcinputlabellen")(inputs=(audio_input, pinyin_labels))
@@ -72,25 +70,24 @@ class USER():
 
     def build_predict_model(self, summary=True):
         audio_input = Input(name='audio_input', shape=(self.tfdu.audio_len, self.tfdu.audio_feature_len, 1),
-                            dtype='float32')
+                            dtype=tf.float32)
 
-        layer_h1 = Conv2D(16, 3, activation='relu', padding='same', kernel_initializer='he_normal')(audio_input)
-        layer_h2 = Conv2D(16, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h1)
+        layer_h1 = Conv2D(32, 3, activation='relu', padding='same', kernel_initializer='he_normal')(audio_input)
+        layer_h2 = Conv2D(32, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h1)
         layer_h3 = MaxPooling2D(pool_size=2, padding="valid")(layer_h2)
-        layer_h4 = Conv2D(32, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h3)
-        layer_h5 = Conv2D(32, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h4)
+
+        layer_h4 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h3)
+        layer_h5 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h4)
         layer_h6 = MaxPooling2D(pool_size=2, padding="valid")(layer_h5)
 
-        layer_h7 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h6)
-        layer_h8 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h7)
-        x = MaxPooling2D(pool_size=2, padding="valid")(layer_h8)  # 池化层
+        layer_h7 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h6)
+        layer_h8 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h7)
+        layer_h9 = MaxPooling2D(pool_size=2, padding="valid")(layer_h8)
 
-        x = BatchNormalization(axis=-1, epsilon=1.1e-5)(x)
-        x = Activation('relu')(x)
-        x = TimeDistributed(Flatten(), name='flatten')(x)
-        x = Bidirectional(GRU(128, return_sequences=True), name='blstm1')(x)
-        x = Bidirectional(GRU(64, return_sequences=True), name='blstm2')(x)
-        crnnoutput = Dense(self.tfdu.pinyins_len + 2, name='crnnoutput', activation='softmax')(x)
+        layer_h10 = TimeDistributed(Flatten(), name='flatten')(layer_h9)
+        layer_h11 = Dense(128, activation="relu", use_bias=True, kernel_initializer='he_normal')(layer_h10)
+
+        crnnoutput = Dense(self.tfdu.pinyins_len + 2, name='crnnoutput', activation='softmax')(layer_h11)
 
         model = Model(inputs=[audio_input], outputs=[crnnoutput])
 
@@ -131,39 +128,32 @@ class USER():
     def decode_batch_predictions(self, pred):
         input_len = np.ones(pred.shape[0]) * pred.shape[1]
         # Use greedy search. For complex tasks, you can use beam search
-        results = ctc_decode(pred, input_length=input_len, greedy=True)[0][0][:, :self.tfdu.label_max_string_len]
-        # Iterate over the results and get back the text
+        results = ctc_decode(pred, input_length=input_len, greedy=True, beam_width=self.tfdu.label_max_string_len)[0][0]
+        # Iterate over the results and get back the pinyin
         output_text = []
         for res in results:
             res = tf.strings.reduce_join(self.tfdu.num_to_pinyin(res), separator=" ").numpy().decode("utf-8")
             output_text.append(res)
         return output_text
 
-    def test(self, images):
+    def test(self, audois):
         model = self.build_predict_model(summary=False)
         model.load_weights(params_check + params_model_name)
 
-        imageinput = []
-        for img in images:
-            res = self.encode_single_sample(img)
-            imageinput.append(res["image"])
+        audioinput = []
+        for ad in audois:
+            res = self.tfdu.encode_single_sample(ad)
+            audioinput.append(res["audio"])
 
-        imageinput = tf.stack(imageinput)
+        audioinput = tf.stack(audioinput)
 
-        preds = model.predict(imageinput)
+        preds = model.predict(audioinput)
         pred_texts = self.decode_batch_predictions(preds)
 
-        m_samples = len(images)
-        count_right = 0.
+        m_samples = len(audois)
         for i in range(m_samples):
-            reallabel = images[i].split(os.path.sep)[-1].split(".png")[0]
             predlabel = pred_texts[i]
-            print(reallabel, " ----> ", predlabel)
-
-            if predlabel == reallabel:
-                count_right += 1.
-
-        print("acc: %.2f" % (count_right / m_samples))
+            print("predict: ", predlabel)
 
 
 def main():

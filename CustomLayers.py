@@ -14,7 +14,6 @@ class CTCLayer(Layer):
 
         loss = self.loss_fn(y_true, y_pred, input_len, label_len)
 
-        # self.add_loss(tf.reduce_mean(loss))
         self.add_loss(loss)
 
         return y_pred

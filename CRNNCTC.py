@@ -11,7 +11,7 @@ from TFDataUtils import TFDATAUTILS
 from CustomLayers import CTCLayer, CTCInputLabelLen
 
 params_epochs = 100
-params_lr = 1.0e-2
+params_lr = 1.0e-3
 params_batch_size = 8
 
 params_check = "models/densenetctc/"
@@ -33,23 +33,27 @@ class USER():
         layer_h1 = Dropout(0.1)(layer_h1)
         layer_h2 = Conv2D(32, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h1)
         layer_h3 = MaxPooling2D(pool_size=2, padding="valid")(layer_h2)
-        layer_h3 = Dropout(0.2)(layer_h3)
+        layer_h3 = Dropout(0.1)(layer_h3)
 
         layer_h4 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h3)
-        layer_h4 = Dropout(0.3)(layer_h4)
+        layer_h4 = Dropout(0.1)(layer_h4)
         layer_h5 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h4)
         layer_h6 = MaxPooling2D(pool_size=2, padding="valid")(layer_h5)
-        layer_h6 = Dropout(0.3)(layer_h6)
+        layer_h6 = Dropout(0.1)(layer_h6)
 
         layer_h7 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h6)
-        layer_h7 = Dropout(0.3)(layer_h7)
+        layer_h7 = Dropout(0.1)(layer_h7)
         layer_h8 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(layer_h7)
         layer_h9 = MaxPooling2D(pool_size=2, padding="valid")(layer_h8)
 
+        layer_h9 = Dropout(0.1)(layer_h9)
+        layer_h9 = BatchNormalization(axis=-1, epsilon=1e-5)(layer_h9)
+        layer_h9 = Activation('relu')(layer_h9)
         layer_h10 = TimeDistributed(Flatten(), name='flatten')(layer_h9)
-        layer_h10 = Dropout(0.4)(layer_h10)
-        layer_h11 = Dense(128, activation="relu", use_bias=True, kernel_initializer='he_normal')(layer_h10)
-        layer_h11 = Dropout(0.4)(layer_h11)
+
+        layer_h11 = Dense(64, activation="relu", name="dense")(layer_h10)
+        layer_h11 = Bidirectional(GRU(512, return_sequences=True, implementation=2, dropout=0.1), name='blstm')(
+            layer_h11)
 
         crnnoutput = Dense(self.tfdu.pinyins_len + 2, name='crnnoutput', activation='softmax')(layer_h11)
 

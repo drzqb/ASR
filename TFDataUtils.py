@@ -155,6 +155,6 @@ class TFDATAUTILS():
 if __name__ == "__main__":
     tfdu = TFDATAUTILS()
     # tfdu.maketfrecord("data/data_thchs30/test/", "data/TFRecordFiles/thchs30_test.tfrecord", mode="test")
-    res=tfdu.encode_single_sample("data/data_thchs30/train/A11_0.wav","data/data_thchs30/data/A11_0.wav.trn")
+    res = tfdu.encode_single_sample("data/data_thchs30/train/A11_0.wav", "data/data_thchs30/data/A11_0.wav.trn")
     print(res["wav"].shape)
     print(res["label"].shape)

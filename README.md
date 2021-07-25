@@ -2,4 +2,9 @@
 
     CRNNCTC：CRNN + CTC
     
-    CustomLayers：CTC Layer
+    CustomLayers：
+    
+        CTC Layer  
+    
+        CTCInputLabelLen Layyer
+    

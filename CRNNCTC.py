@@ -12,7 +12,6 @@ from CustomLayers import CTCLayer, CTCInputLabelLen
 
 params_epochs = 100
 params_lr = 1.0e-2
-param_drop_rate = 0.2
 params_batch_size = 16
 
 params_check = "models/densenetctc/"

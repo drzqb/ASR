@@ -1,21 +1,21 @@
 import tensorflow as tf
 from tensorflow.keras.backend import ctc_decode
 from tensorflow.keras.layers import Input, Dense, Conv2D, MaxPooling2D, Dropout, Bidirectional, BatchNormalization, GRU, \
-    Activation, TimeDistributed, Flatten, Masking
+    Activation, TimeDistributed, Flatten
 from tensorflow.keras.models import Model
-from tensorflow.keras.optimizers import Adam, Adadelta
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 import os
-from pathlib import Path
 import numpy as np
 from TFDataUtils import TFDATAUTILS
 from CustomLayers import CTCLayer, CTCInputLabelLen
 
 params_epochs = 100
 params_lr = 1.0e-3
-params_batch_size = 8
+params_batch_size = 16
 
-params_check = "models/densenetctc/"
-params_model_name = "densenetctc.h5"
+params_check = "models/crnnctc/"
+params_model_name = "crnnctc.h5"
 
 params_mode = "train0"
 
@@ -119,12 +119,21 @@ class USER():
         if params_mode == "train1":
             model.load_weights(params_check + params_model_name)
 
-        optimizer = Adadelta(params_lr)
+        optimizer = Adam(params_lr)
         model.compile(optimizer)
+        callbacks = [
+            EarlyStopping(monitor='val_loss', patience=10),
+            ModelCheckpoint(filepath=params_check + params_model_name,
+                            monitor='val_loss',
+                            save_best_only=True,
+                            save_weights_only=True)
+        ]
+
         model.fit(
             train_dataset,
             epochs=params_epochs,
-            validation_data=dev_dataset
+            validation_data=dev_dataset,
+            callbacks=callbacks
         )
 
         model.save_weights(params_check + params_model_name)
@@ -144,17 +153,18 @@ class USER():
         model = self.build_predict_model(summary=False)
         model.load_weights(params_check + params_model_name)
 
-        audioinput = []
-        for ad in audois:
-            res = self.tfdu.encode_single_sample(ad)
-            audioinput.append(res["audio"])
+        m_samples = len(audois)
+        audioinput = np.zeros([m_samples, self.tfdu.audio_len, self.tfdu.audio_feature_len], dtype=np.float)
 
-        audioinput = tf.stack(audioinput)
+        for i in range(m_samples):
+            res = self.tfdu.encode_single_sample(audois[i])
+            audio = res["audio"]
+            audio_len = len(audio)
+            audioinput[i, :audio_len] = audio
 
         preds = model.predict(audioinput)
         pred_texts = self.decode_batch_predictions(preds)
 
-        m_samples = len(audois)
         for i in range(m_samples):
             predlabel = pred_texts[i]
             print("predict: ", predlabel)
@@ -170,17 +180,10 @@ def main():
         user.train()
 
     elif params_mode == 'test':
-        data_dir = Path("data/OriginalFiles/captcha_images_v2/")
-        images = sorted(list(map(str, list(data_dir.glob("*.png")))))
-
-        # images = [
-        #     "data/OriginalFiles/captcha_images_v2/2b827.png",
-        #     "data/OriginalFiles/captcha_images_v2/36w25.png",
-        #     # "data/OriginalFiles/captcha_images_v1/e4pix.png",
-        #     # "data/OriginalFiles/captcha_images_v1/eh8j7.png",
-        #     # "data/OriginalFiles/captcha_images_v1/m55qf.png",
-        # ]
-        user.test(images)
+        audios = [
+            "data/data_thchs30/test/D4_750.wav",
+        ]
+        user.test(audios)
 
 
 if __name__ == "__main__":

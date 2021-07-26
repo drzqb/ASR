@@ -64,6 +64,8 @@ class USER():
 
         model = Model(inputs=[audio_input, pinyin_labels], outputs=[predict])
 
+        tf.keras.utils.plot_model(model, "crnnctc.jpg", show_shapes=True, dpi=500)
+
         if summary:
             model.summary(line_length=200)
 
